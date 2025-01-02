@@ -1,0 +1,4 @@
+python-telegram-bot==21.9
+selenium==4.27.1
+psycopg2==2.9.10
+python-dotenv==1.0.1

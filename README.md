@@ -61,8 +61,8 @@ Built with Python, Selenium, and PostgreSQL.
 
 6. **Clone the Repository**
    ```bash
-   git clone https://github.com/yourusername/unshorten-buddy.git
-   cd unshorten-buddy
+   git clone https://github.com/barryallen16/unshortenBuddy.git
+   cd unshortenBuddy
    ```
 
 7. **Install Python Dependencies**

@@ -198,7 +198,7 @@ No more link guessing games. Let Unshorten Buddy guide you through the link wond
         formatted_message = formatted_message.replace('#', r'\#')
         formatted_message = formatted_message.replace('**', '*')
         await update.message.reply_text(text=formatted_message, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-    if userid not in usernames or userid !=str(ADMIN_USERID):
+    if userid not in usernames and userid !=str(ADMIN_USERID):
         formatted_message = r"""
 🌟 *Unlock the Magic with Unshorten Buddy Bot!* 🌟
 
@@ -263,46 +263,48 @@ async def process_urls(input, url_pattern, process_function, update: Update):
 async def process_input(update, context):
     if "waiting_for_input" in context.user_data and context.user_data["waiting_for_input"]:
         user_input = update.message.text
-        
-        context.user_data["user_input"] = user_input
-        context.user_data["waiting_for_input"] = False
-        connection = psycopg2.connect(DATABASE_URL)
-        cursor = connection.cursor()
-        userid = update.message.from_user.id
-        admin = ADMIN_USERID
-        if userid == admin:
-            idtestquery=""
-            cursor.execute(f"SELECT username FROM accesscontrol")
-            rows = cursor.fetchall()
-            usernames = [row[0] for row in rows]
-            user_input=str(user_input)
-            if user_input in usernames or user_input ==str(ADMIN_USERID):
-                print('in here')
-                response = f"*The user already has access.*"
-                response = response.replace('.', r'\.')
+        if user_input.isdigit():
+            context.user_data["user_input"] = user_input
+            context.user_data["waiting_for_input"] = False
+            connection = psycopg2.connect(DATABASE_URL)
+            cursor = connection.cursor()
+            userid = update.message.from_user.id
+            admin = ADMIN_USERID
+            if userid == admin:
+                idtestquery=""
+                cursor.execute(f"SELECT username FROM accesscontrol")
+                rows = cursor.fetchall()
+                usernames = [row[0] for row in rows]
+                user_input=str(user_input)
+                if user_input in usernames or user_input ==str(ADMIN_USERID):
+                    print('in here')
+                    response = f"*The user already has access.*"
+                    response = response.replace('.', r'\.')
+                    await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+                else:
+                    query = "INSERT INTO accesscontrol (username) VALUES (%s)"
+                    cursor.execute(query, (user_input,))
+                    connection.commit()
+                    response = f"✅ *Access Granted!* The user has been added to the bot's access list."
+                    response = response.replace('.', r'\.')
+                    response = response.replace('!', r'\!')
+                    await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+                    # Notify the user that access has been granted
+                    response=f"""🎉 *Welcome aboard!* 🚀\n\nYour access to *UnshortenBuddy Bot* has been granted by the admin. You can now start using the bot to unshorten links effortlessly. Just send me a short link, and I'll do the rest! ✨\n\nHappy unshortening! 😊"""
+                    response = response.replace('!', r'\!')
+                    response = response.replace('.', r'\.')
+                    await context.bot.send_message(
+                        chat_id=user_input,
+                        text=response,
+                        parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
+                    )
+            elif userid != admin:
+                response = r"❌ *Oops!* This command is exclusive to the admin. Only the admin can grant bot access."
                 await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-            else:
-                query = "INSERT INTO accesscontrol (username) VALUES (%s)"
-                cursor.execute(query, (user_input,))
-                connection.commit()
-                response = f"✅ *Access Granted!* The user has been added to the bot's access list."
-                response = response.replace('.', r'\.')
-                response = response.replace('!', r'\!')
-                await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-                # Notify the user that access has been granted
-                response=f"""🎉 *Welcome aboard!* 🚀\n\nYour access to *UnshortenBuddy Bot* has been granted by the admin. You can now start using the bot to unshorten links effortlessly. Just send me a short link, and I'll do the rest! ✨\n\nHappy unshortening! 😊"""
-                response = response.replace('!', r'\!')
-                response = response.replace('.', r'\.')
-                await context.bot.send_message(
-                    chat_id=user_input,
-                    text=response,
-                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
-                )
-        elif userid != admin:
-            response = r"❌ *Oops!* This command is exclusive to the admin. Only the admin can grant bot access."
-            await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-        cursor.close()
-        connection.close()
+            cursor.close()
+            connection.close()
+        else:
+            context.user_data["waiting_for_input"] = False
     else:
         connection = psycopg2.connect(DATABASE_URL)
         cursor = connection.cursor()

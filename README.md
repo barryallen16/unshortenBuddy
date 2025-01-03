@@ -4,6 +4,10 @@ Unshorten Buddy is your friendly Telegram bot that effortlessly unshortens URLs,
 Unshorten Buddy is here to simplify your online experience. Fast, secure, and user-friendly, it’s the perfect tool for anyone tired of clicking through endless redirects.
 Built with Python, Selenium, and PostgreSQL.
 
+## **Demo video**
+https://github.com/user-attachments/assets/d7c88ff9-a4d6-4cfb-a2f9-a3b9bd0aae7a
+
+
 ---
 
 ## **Features** ✨

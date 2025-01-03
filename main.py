@@ -35,6 +35,8 @@ def wait_for_timer(driver, timer_id):
         lambda d: d.find_element(By.ID, timer_id).text == "0"
     )
 
+def wait_for_page(driver,id,text):
+    WebDriverWait(driver,30).until(lambda d:text in d.find_element(By.ID,id).text)
 async def tnshort_bypass(url):
     chrome_options = webdriver.ChromeOptions()
     user_agent = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.92 Mobile Safari/537.36"
@@ -45,37 +47,45 @@ async def tnshort_bypass(url):
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless=new")
     c_url = None
+    chrome_options.page_load_strategy = 'eager'
     driver = webdriver.Chrome(options=chrome_options)
     try:
         driver.get(url)
-        driver.implicitly_wait(30)
-        for page_no in range(1, 4):
-            pageNoText = driver.find_element(By.ID, 'stick').text
-            if f"{page_no}/3" in pageNoText:
-                driver.execute_script(""" 
-                const btn1 = document.getElementById('btn7');
-                btn1.style.display = 'block';
-                btn1.click();
-                """)
-            else:
-                print(f"Unexpected page number: {pageNoText}")
+        # driver.implicitly_wait(30)
+        wait_for_page(driver,'stick','1/3')
+        driver.execute_script(""" 
+        const btn1 = document.getElementById('btn7');
+        btn1.style.display = 'block';
+        btn1.click();
+        """)
+        wait_for_page(driver,'stick','2/3')
+        driver.execute_script(""" 
+        const btn1 = document.getElementById('btn7');
+        btn1.style.display = 'block';
+        btn1.click();
+        """)
+        wait_for_page(driver,'stick','3/3')
+        driver.execute_script(""" 
+        const btn1 = document.getElementById('btn7');
+        btn1.style.display = 'block';
+        btn1.click();
+        """)
+
         try:
             wait_for_timer(driver, "timer")
-            timer = driver.find_element(By.ID, 'timer')
-            if timer:
-                time.sleep(3)
-                ip = driver.execute_script('return window.location.hostname')
-                driver.find_element(By.CSS_SELECTOR, 'a.btn.btn-success.btn-lg.get-link').click()
-                c_url = driver.current_url
-                driver.quit()
+            time.sleep(3)
+            c_url=driver.find_element(By.CSS_SELECTOR, 'a.btn.btn-success.btn-lg.get-link').get_attribute('href')
+            print(c_url)
         except:
             pass
+        
     except Exception as e:
-        error_message = str(e)
-        print(error_message)
+        print(f"Error processing link {url}: {e}")
+
     finally:
+        driver.quit()
         if c_url:
             connection = psycopg2.connect(DATABASE_URL)
             cursor = connection.cursor()
@@ -92,36 +102,35 @@ async def krownlinks_bypass(url):
     user_agent = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.92 Mobile Safari/537.36"
     chrome_options.add_argument(f"user-agent={user_agent}")
     chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--enable-unsafe-swiftshader')
     chrome_options.add_argument('--disable-infobars')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--headless")
+    chrome_options.page_load_strategy = 'eager'    
+    # chrome_options.add_argument('--disable-software-rasterizer')
+    # chrome_options.add_argument('--disable-webgl')
+    chrome_options.add_argument("--headless=new")
     fdlink = None
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
     driver.execute_script("javascript:openSite()")
-    wait = WebDriverWait(driver, 60)
-    element = wait.until(
-        EC.presence_of_element_located((By.ID, "gotolink")))
-    if element:
-        driver.execute_script("""var gotoLinkButton = document.getElementById("gotolink");
+    
+    driver.execute_script("""var gotoLinkButton = document.getElementById("gotolink");
 gotoLinkButton.disabled = false;
 gotoLinkButton.click();
 """)
-        wait = WebDriverWait(driver, 60)
-        element = wait.until(
-            EC.presence_of_element_located((By.LINK_TEXT, "Get Link")))
-        if element:
-            fdlink = driver.find_element(By.CSS_SELECTOR, "a.btn").get_attribute("href")
-            connection = psycopg2.connect(DATABASE_URL)
-            cursor = connection.cursor()
-            cursor.execute(f"INSERT INTO unshortenbuddy (shortlink,directlink) VALUES {url, fdlink}")
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return fdlink
+    wait_for_timer(driver=driver,timer_id="timer")
+    time.sleep(3)
+    fdlink = driver.find_element(By.CSS_SELECTOR, "a.btn").get_attribute("href")
+    connection = psycopg2.connect(DATABASE_URL)
+    cursor = connection.cursor()
+    cursor.execute(f"INSERT INTO unshortenbuddy (shortlink,directlink) VALUES {url, fdlink}")
+    connection.commit()
+    cursor.close()
+    connection.close()
+    return fdlink
 
 async def process_tnshort_urls(urls):
     tasks = [tnshort_bypass(url) for url in urls]
@@ -144,9 +153,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     userid = update.message.from_user.id
     userid = str(userid)
     if userid not in usernames and userid !=str(ADMIN_USERID):
-        keyboard = [[InlineKeyboardButton("Get User Id", callback_data='getuserid')]]
+        keyboard = [[InlineKeyboardButton("Request Access", callback_data='requestaccess')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        response = f"""🔒 *Access Denied!* 🚫\n\nHey there! It looks like you don’t have access to this bot yet. No worries! Tap *Get User Id* to fetch your user ID and forward it to the admin for access. Once approved, you’ll be all set to start unshortening links like a pro! 😊"""
+        response = f"""🔒 *Access Denied!* 🚫\n\nHey there! It looks like you don’t have access to this bot yet. No worries! Tap *Request Access* to request admin for bot access.. Once approved, you’ll be all set to start unshortening links like a pro! 😊"""
         response = response.replace('.', r'\.')
         response = response.replace('!', r'\!')
         
@@ -271,12 +280,11 @@ async def process_input(update, context):
             userid = update.message.from_user.id
             admin = ADMIN_USERID
             if userid == admin:
-                idtestquery=""
                 cursor.execute(f"SELECT username FROM accesscontrol")
                 rows = cursor.fetchall()
                 usernames = [row[0] for row in rows]
-                user_input=str(user_input)
-                if user_input in usernames or user_input ==str(ADMIN_USERID):
+                user_input = str(user_input)
+                if user_input in usernames or user_input == str(ADMIN_USERID):
                     print('in here')
                     response = f"*The user already has access.*"
                     response = response.replace('.', r'\.')
@@ -289,8 +297,7 @@ async def process_input(update, context):
                     response = response.replace('.', r'\.')
                     response = response.replace('!', r'\!')
                     await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-                    # Notify the user that access has been granted
-                    response=f"""🎉 *Welcome aboard!* 🚀\n\nYour access to *UnshortenBuddy Bot* has been granted by the admin. You can now start using the bot to unshorten links effortlessly. Just send me a short link, and I'll do the rest! ✨\n\nHappy unshortening! 😊"""
+                    response = f"""🎉 *Welcome aboard!* 🚀\n\nYour access to *UnshortenBuddy Bot* has been granted by the admin. You can now start using the bot to unshorten links effortlessly. Just send me a short link, and I'll do the rest! ✨\n\nHappy unshortening! 😊"""
                     response = response.replace('!', r'\!')
                     response = response.replace('.', r'\.')
                     await context.bot.send_message(
@@ -314,35 +321,44 @@ async def process_input(update, context):
         usernames = [row[0] for row in rows]
         userid = update.message.from_user.id
         userid = str(userid)
-        if userid not in usernames and userid !=str(ADMIN_USERID):
-            keyboard = [[InlineKeyboardButton("Get User Id", callback_data='getuserid')]]
+        if userid not in usernames and userid != str(ADMIN_USERID):
+            keyboard = [[InlineKeyboardButton("Request Access", callback_data='requestaccess')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            response = f"🔒 *Access Denied!*\n\nApologies, you don't have access to this bot yet. Tap *Get User Id* to fetch your user ID and forward it to the admin for access."
+            response = f"🔒 *Access Denied!*\n\nApologies, you don't have access to this bot yet. Tap *Request Access* to request admin for bot access."
             response = response.replace('.', r'\.')
             response = response.replace('!', r'\!')
             await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                                             reply_markup=reply_markup)
-        elif userid in usernames or userid ==str(ADMIN_USERID):
+        elif userid in usernames or userid == str(ADMIN_USERID):
             input_text = update.message.text
             tnshort_pattern = re.compile(r'https://tnseries.com/\w+')
             krownlinks_pattern = re.compile(r'https://krownlinks.me/\S+')
-            if re.search(tnshort_pattern, input_text):
-                final_link = await process_urls(input_text, "https://tnseries.com/", process_tnshort_urls, update)
-            elif re.search(krownlinks_pattern, input_text):
-                print("found krownlinks")
-                final_link = await process_urls(input_text, "https://krownlinks.me/", process_krownlinks_urls, update)
-            else:
-                final_link = None
-                response= f"""❌ *Oops!* It seems I've hit a roadblock with this particular website. 🚧\n\nI can't unshorten links from here. Feel free to try another link, and I'll do my best to assist you! 😊"""
+            try:
+                if re.search(tnshort_pattern, input_text):
+                    final_link = await process_urls(input_text, "https://tnseries.com/", process_tnshort_urls, update)
+                elif re.search(krownlinks_pattern, input_text):
+                    print("found krownlinks")
+                    final_link = await process_urls(input_text, "https://krownlinks.me/", process_krownlinks_urls, update)
+                else:
+                    final_link = None
+                    response = f"""❌ *Oops!* It seems I've hit a roadblock with this particular website. 🚧\n\nI can't unshorten links from here. Feel free to try another link, and I'll do my best to assist you! 😊"""
+                    response = response.replace('!', r'\!')
+                    response = response.replace('.', r'\.')
+                    await update.message.reply_text(
+                        response,
+                        parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
+                    )
+                if final_link:
+                    await update.message.reply_text(final_link)
+            except Exception as e:
+                print(f"Error processing input: {e}")
+                response = f"""❌ *Oops!* Something went wrong while processing your request. 🚧\n\nPlease try again later or send a different link. If the issue persists, contact the admin for assistance. 😊"""
                 response = response.replace('!', r'\!')
                 response = response.replace('.', r'\.')
                 await update.message.reply_text(
-                response,
+                    response,
                     parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
                 )
-            if final_link:
-                await update.message.reply_text(final_link)
-
 async def photo_caption_handler(update, context):
     connection = psycopg2.connect(DATABASE_URL)
     cursor = connection.cursor()
@@ -352,15 +368,15 @@ async def photo_caption_handler(update, context):
     usernames = [row[0] for row in rows]
     userid = update.message.from_user.id
     userid = str(userid)
-    if userid not in usernames and userid !=str(ADMIN_USERID):
-        keyboard = [[InlineKeyboardButton("Get User Id", callback_data='getuserid')]]
+    if userid not in usernames and userid != str(ADMIN_USERID):
+        keyboard = [[InlineKeyboardButton("Request Access", callback_data='requestaccess')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        response = f"🔒 *Access Denied!*\n\nApologies, you don't have access to this bot yet. Tap *Get User Id* to fetch your user ID and forward it to the admin for access."
+        response = f"🔒 *Access Denied!*\n\nApologies, you don't have access to this bot yet. Tap *Request Access* to request admin for bot access."
         response = response.replace('.', r'\.')
         response = response.replace('!', r'\!')
         await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
                                         reply_markup=reply_markup)
-    elif userid in usernames or userid ==str(ADMIN_USERID):
+    elif userid in usernames or userid == str(ADMIN_USERID):
         message = update.message
         caption_text = None
         if message.photo and message.caption:
@@ -370,22 +386,32 @@ async def photo_caption_handler(update, context):
         input_text = caption_text
         tnshort_pattern = re.compile(r'https://tnseries.com/\w+')
         krownlinks_pattern = re.compile(r'https://krownlinks.me/\S+')
-        if re.search(tnshort_pattern, input_text):
-            final_link = await process_urls(input_text, "https://tnseries.com/", process_tnshort_urls, update)
-        elif re.search(krownlinks_pattern, input_text):
-            print("found krownlinks")
-            final_link = await process_urls(input_text, "https://krownlinks.me/", process_krownlinks_urls, update)
-        else:
-            final_link = None
-            response= f"""❌ *Oops!* It seems I've hit a roadblock with this particular website. 🚧\n\nI can't unshorten links from here. Feel free to try another link, and I'll do my best to assist you! 😊"""
+        try:
+            if re.search(tnshort_pattern, input_text):
+                final_link = await process_urls(input_text, "https://tnseries.com/", process_tnshort_urls, update)
+            elif re.search(krownlinks_pattern, input_text):
+                print("found krownlinks")
+                final_link = await process_urls(input_text, "https://krownlinks.me/", process_krownlinks_urls, update)
+            else:
+                final_link = None
+                response = f"""❌ *Oops!* It seems I've hit a roadblock with this particular website. 🚧\n\nI can't unshorten links from here. Feel free to try another link, and I'll do my best to assist you! 😊"""
+                response = response.replace('!', r'\!')
+                response = response.replace('.', r'\.')
+                await update.message.reply_text(
+                    response,
+                    parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
+                )
+            if final_link:
+                await update.message.reply_text(final_link)
+        except Exception as e:
+            print(f"Error processing photo caption: {e}")
+            response = f"""❌ *Oops!* Something went wrong while processing your request. 🚧\n\nPlease try again later or send a different link. If the issue persists, contact the admin for assistance. 😊"""
             response = response.replace('!', r'\!')
             response = response.replace('.', r'\.')
-            await update.message.reply_text(response,
+            await update.message.reply_text(
+                response,
                 parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
             )
-        if final_link:
-            await update.message.reply_text(final_link)
-
 async def botaccess(update: Update, context):
     userid = update.message.from_user.id
     admin = ADMIN_USERID
@@ -399,19 +425,23 @@ async def botaccess(update: Update, context):
         response = response.replace('!', r'\!')
         await update.message.reply_text(text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
 
-async def button_click(update, context):
+async def request_access(update, context):
     query = update.callback_query
     button_clicked = query.data
     message = update.message or query.message
-    if button_clicked == 'getuserid':
-        user_id = update.effective_user.id
-        user_name = update.effective_user.name
-        response = f"🆔 *Your User ID:* `{user_id}`\n👤 *Your Name:* {user_name}"
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
-        response = f"📤 *Next Steps:*\n\nSend your user ID to the admin to get access to the bot. Once approved, you’ll be all set to start unshortening links! 🚀"
-        response = response.replace('!', r'\!')
+    if button_clicked == 'requestaccess':
+        userid = update.effective_user.id
+        username = update.effective_user.name
+        admin = ADMIN_USERID
+        response = f"🆔 *New Access Request!*\n\nUser ID: `{userid}`\nUsername: {username}\n\nTo grant access, use the /givebotaccess command."
         response = response.replace('.', r'\.')
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        response = response.replace('!', r'\!')
+        await context.bot.send_message(chat_id=admin, text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+        response = f"✅ *Request Sent!*\n\nYour access request has been sent to the admin. You’ll be notified once your access is approved. 😊"
+        response = response.replace('.', r'\.')
+        response = response.replace('!', r'\!')
+        await context.bot.send_message(chat_id=update.effective_chat.id,text=response, parse_mode=telegram.constants.ParseMode.MARKDOWN_V2)
+
 if __name__ == '__main__':
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -419,5 +449,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_input))
     app.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO & filters.CAPTION, photo_caption_handler))
     app.add_handler(CommandHandler("givebotaccess", botaccess))
-    app.add_handler(CallbackQueryHandler(button_click))
+    app.add_handler(CallbackQueryHandler(request_access))
     app.run_polling()
